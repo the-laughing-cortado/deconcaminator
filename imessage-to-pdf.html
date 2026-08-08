@@ -1,0 +1,794 @@
+<!--
+  iMessage → PDF
+  Export an iMessage conversation as a clean, readable PDF.
+  https://github.com/YOUR_USERNAME/imessage-to-pdf
+  MIT License — see LICENSE
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>iMessage → PDF</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500;600&display=swap');
+
+:root {
+  --bg: #f7f3ee;
+  --surface: #ffffff;
+  --surface2: #f2ede6;
+  --border: #e0d8ce;
+  --text: #2a2118;
+  --muted: #9a8878;
+  --accent: #b5651d;
+  --accent-light: #f5e8d8;
+  --accent-dark: #8b4513;
+  --sent: #0B93F6;
+  --recv: #E5E5EA;
+  --recv-text: #1c1c1e;
+  --green: #5a9e6f;
+  --red: #c0392b;
+  --shadow: 0 2px 20px rgba(42,33,24,0.07);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+@media screen {
+  .shell { max-width: 720px; margin: 0 auto; padding: 48px 24px 96px; }
+
+  header { text-align: center; margin-bottom: 44px; }
+  .wordmark { font-family: 'Lora', serif; font-size: 2.1rem; color: var(--text); letter-spacing: -0.01em; margin-bottom: 6px; }
+  .wordmark span { color: var(--accent); font-style: italic; }
+  header p { color: var(--muted); font-size: 0.9rem; font-weight: 300; }
+
+  /* Progress */
+  .progress { display: flex; align-items: center; justify-content: center; margin-bottom: 40px; }
+  .prog-step { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .prog-dot {
+    width: 32px; height: 32px; border-radius: 50%;
+    border: 2px solid var(--border); background: var(--surface);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.75rem; font-weight: 600; color: var(--muted);
+    transition: all 0.3s;
+  }
+  .prog-step.active .prog-dot { border-color: var(--accent); background: var(--accent); color: white; }
+  .prog-step.done .prog-dot { border-color: var(--green); background: var(--green); color: white; }
+  .prog-label { font-size: 0.67rem; color: var(--muted); font-weight: 500; white-space: nowrap; letter-spacing: 0.04em; text-transform: uppercase; }
+  .prog-step.active .prog-label { color: var(--accent); }
+  .prog-step.done .prog-label { color: var(--green); }
+  .prog-line { flex: 1; height: 2px; background: var(--border); margin-bottom: 22px; min-width: 30px; max-width: 70px; transition: background 0.3s; }
+  .prog-line.done { background: var(--green); }
+
+  /* Cards */
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 20px; padding: 28px; box-shadow: var(--shadow);
+    animation: slideIn 0.35s ease;
+  }
+  @keyframes slideIn { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+
+  .card-title { font-family: 'Lora', serif; font-size: 1.25rem; font-weight: 600; margin-bottom: 6px; }
+  .card-sub { color: var(--muted); font-size: 0.875rem; margin-bottom: 20px; line-height: 1.6; }
+
+  /* Terminal */
+  .terminal {
+    background: #1e1a16; border-radius: 12px; padding: 16px 18px;
+    margin: 16px 0; position: relative;
+  }
+  .terminal::before { content: '● ● ●'; display: block; font-size: 10px; color: #554433; margin-bottom: 10px; letter-spacing: 4px; }
+  .terminal code {
+    display: block; font-family: 'SF Mono','Fira Code',monospace;
+    font-size: 0.77rem; color: #d4b896; line-height: 1.85; white-space: pre-wrap; word-break: break-all;
+  }
+  .copy-btn {
+    position: absolute; top: 12px; right: 12px;
+    background: #3a2e24; border: 1px solid #5a4a38; color: #d4b896;
+    padding: 4px 10px; border-radius: 6px; font-size: 0.72rem;
+    cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all 0.2s;
+  }
+  .copy-btn:hover { background: #4a3a2c; }
+  .copy-btn.copied { color: #a8d8a8; border-color: #a8d8a8; }
+
+  /* Info box */
+  .info {
+    background: var(--accent-light); border-left: 3px solid var(--accent);
+    border-radius: 0 10px 10px 0; padding: 12px 16px; margin: 14px 0;
+    font-size: 0.85rem; line-height: 1.65; color: var(--text);
+  }
+  .info strong { color: var(--accent-dark); }
+
+  /* Fields */
+  .field { margin-bottom: 16px; }
+  .field label { display: block; font-size: 0.74rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+  .field input, .field select, .field textarea {
+    width: 100%; padding: 11px 14px; border: 1.5px solid var(--border);
+    border-radius: 10px; font-family: 'DM Sans',sans-serif; font-size: 0.9rem;
+    background: var(--surface2); color: var(--text); outline: none; transition: border-color 0.2s; appearance: none;
+  }
+  .field input:focus, .field select:focus, .field textarea:focus { border-color: var(--accent); }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  textarea.mono { font-family: 'SF Mono','Fira Code',monospace; font-size: 0.78rem; min-height: 140px; resize: vertical; }
+
+  /* Conversation picker */
+  .conv-list { display: flex; flex-direction: column; gap: 8px; margin: 14px 0; max-height: 320px; overflow-y: auto; padding-right: 4px; }
+  .conv-list::-webkit-scrollbar { width: 4px; }
+  .conv-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  .conv-item {
+    display: flex; align-items: center; gap: 14px; padding: 12px 14px;
+    border: 1.5px solid var(--border); border-radius: 12px; cursor: pointer;
+    transition: all 0.18s; background: var(--surface2);
+  }
+  .conv-item:hover { border-color: var(--accent); background: var(--accent-light); }
+  .conv-item.selected { border-color: var(--accent); background: var(--accent-light); box-shadow: 0 0 0 3px rgba(181,101,29,0.12); }
+
+  .conv-avatar { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1rem; font-weight: 700; color: white; flex-shrink: 0; }
+  .conv-info { flex: 1; min-width: 0; }
+  .conv-name { font-weight: 600; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .conv-id { font-size: 0.75rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .conv-count { font-size: 0.72rem; color: var(--muted); white-space: nowrap; }
+  .conv-item.selected .conv-count::before { content: '✓ '; color: var(--green); font-weight: 700; }
+
+  /* Buttons */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 12px 22px; border-radius: 11px; border: none;
+    font-family: 'DM Sans',sans-serif; font-size: 0.9rem; font-weight: 500;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .btn-primary { background: var(--accent); color: white; width: 100%; margin-top: 18px; }
+  .btn-primary:hover { background: var(--accent-dark); transform: translateY(-1px); box-shadow: 0 4px 14px rgba(181,101,29,0.28); }
+  .btn-primary:active { transform: translateY(0); }
+  .btn-ghost { background: transparent; color: var(--muted); border: 1.5px solid var(--border); }
+  .btn-ghost:hover { color: var(--text); border-color: var(--text); }
+  .btn-pdf { background: var(--accent); color: white; }
+  .btn-pdf:hover { background: var(--accent-dark); }
+
+  .error { background: #fde8e8; border: 1px solid #f5c6c6; border-radius: 10px; padding: 10px 14px; font-size: 0.85rem; color: var(--red); margin-top: 12px; }
+
+  /* Toolbar */
+  .toolbar {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 16px 20px; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 16px; margin-bottom: 20px; box-shadow: var(--shadow);
+  }
+  .toolbar-info h3 { font-family: 'Lora',serif; font-size: 1rem; }
+  .toolbar-info p { font-size: 0.78rem; color: var(--muted); margin-top: 2px; }
+  .toolbar-btns { display: flex; gap: 10px; }
+  .toolbar-btns .btn { margin-top: 0; width: auto; }
+
+  #stepDiscover, #stepFilter, #stepPaste, #stepPreview { display: none; }
+}
+
+/* ── Conversation rendering (screen + print) ── */
+.conv-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; overflow: hidden; box-shadow: var(--shadow); }
+.conv-head { background: var(--surface2); border-bottom: 1px solid var(--border); padding: 16px 22px; display: flex; align-items: center; gap: 14px; }
+.conv-head-avatar { width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1rem; font-weight: 700; color: white; flex-shrink: 0; }
+.conv-head-info h3 { font-size: 1rem; font-weight: 600; }
+.conv-head-info p { font-size: 0.78rem; color: var(--muted); margin-top: 2px; }
+.messages { padding: 16px 14px; display: flex; flex-direction: column; gap: 3px; }
+.date-sep { text-align: center; font-size: 0.7rem; color: var(--muted); margin: 12px 0 6px; font-weight: 500; letter-spacing: 0.03em; }
+.msg-grp { display: flex; flex-direction: column; gap: 2px; margin: 3px 0; }
+.msg-grp.sent { align-items: flex-end; }
+.msg-grp.recv { align-items: flex-start; }
+.bubble { max-width: 70%; padding: 8px 13px; border-radius: 18px; font-size: 0.88rem; line-height: 1.5; word-break: break-word; }
+.sent .bubble { background: var(--sent); color: white; border-bottom-right-radius: 4px; }
+.recv .bubble { background: var(--recv); color: var(--recv-text); border-bottom-left-radius: 4px; }
+.btime { font-size: 0.67rem; color: var(--muted); margin-top: 8px; padding: 0 4px; }
+.sent .btime { text-align: right; }
+.recv .btime { text-align: left; }
+
+/* ── Print ── */
+@media print {
+  body { background: white; }
+  .shell { max-width: 100%; padding: 0; }
+  header, .progress, #stepNames, #stepDiscover, #stepFilter, #stepPaste, .toolbar { display: none !important; }
+  #stepPreview { display: block !important; }
+  .conv-wrap { border: none; border-radius: 0; box-shadow: none; }
+  .pdf-header { display: block !important; padding: 10px 22px 8px; border-bottom: 1px solid #eee; font-size: 0.72rem; color: #999; }
+  .messages { padding: 10px; }
+  .bubble { max-width: 75%; font-size: 0.83rem; }
+  .msg-grp { page-break-inside: avoid; }
+}
+@media screen { .pdf-header { display: none; } }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <header>
+    <div class="wordmark">iMessage <span>→ PDF</span></div>
+    <p>Export any conversation to a beautiful, printable document — step by step</p>
+  </header>
+
+  <div class="progress" id="progress">
+    <div class="prog-step active" id="prog1"><div class="prog-dot">1</div><div class="prog-label">Names</div></div>
+    <div class="prog-line" id="line1"></div>
+    <div class="prog-step" id="prog2"><div class="prog-dot">2</div><div class="prog-label">Find Chat</div></div>
+    <div class="prog-line" id="line2"></div>
+    <div class="prog-step" id="prog3"><div class="prog-dot">3</div><div class="prog-label">Filter</div></div>
+    <div class="prog-line" id="line3"></div>
+    <div class="prog-step" id="prog4"><div class="prog-dot">4</div><div class="prog-label">Export</div></div>
+    <div class="prog-line" id="line4"></div>
+    <div class="prog-step" id="prog5"><div class="prog-dot">5</div><div class="prog-label">Preview</div></div>
+  </div>
+
+  <!-- STEP 1: Names -->
+  <div class="card" id="stepNames">
+    <div class="card-title">Who's in this conversation?</div>
+    <div class="card-sub">Enter both names so the final PDF is clearly labeled.</div>
+    <div class="row2">
+      <div class="field">
+        <label>Your name (sent messages)</label>
+        <input type="text" id="senderName" placeholder="e.g. Mom" />
+      </div>
+      <div class="field">
+        <label>Their name (received messages)</label>
+        <input type="text" id="receiverName" placeholder="e.g. John" />
+      </div>
+    </div>
+    <div id="namesError"></div>
+    <button type="button" class="btn btn-primary" onclick="goStep2()">Continue →</button>
+  </div>
+
+  <!-- STEP 2: Discover -->
+  <div id="stepDiscover">
+    <div class="card">
+      <div class="card-title">Step 1 — List all your conversations</div>
+      <div class="card-sub">
+        Run this command in <strong>Terminal</strong> to see all your iMessage conversations. It shows each one with a unique ID and message count so you can pick the right one.
+      </div>
+      <div class="field" style="margin-bottom:14px;">
+        <label>Database source</label>
+        <div style="display:flex; gap:8px; margin-bottom:8px;">
+          <button type="button" class="btn btn-ghost" style="font-size:0.8rem; padding:6px 14px;" onclick="setDbPath('~/Library/Messages/chat.db')">Mac Messages</button>
+          <button type="button" class="btn btn-ghost" style="font-size:0.8rem; padding:6px 14px;" onclick="setDbPath('')">iPhone Backup</button>
+        </div>
+        <input type="text" id="dbPathInput" value="~/Library/Messages/chat.db" oninput="setDbPath(this.value)" placeholder="Paste database path here…" />
+      </div>
+      <div class="info">
+        <strong>New to Terminal?</strong> Press <strong>⌘ Space</strong>, type "Terminal", then press Enter. Then paste the command below and press Enter.
+      </div>
+      <div class="terminal">
+        <button type="button" class="copy-btn" onclick="copyEl('discoverCmd', this)">Copy</button>
+        <code id="discoverCmd"></code>
+      </div>
+      <div class="field" style="margin-top:18px;">
+        <label>Paste the Terminal output here</label>
+        <textarea class="mono" id="discoverOutput" placeholder="Output will look like this — paste it all:&#10;&#10;1|+12155550134||312&#10;2|chat456789012||180&#10;3|john.doe@icloud.com|Home||95&#10;4|+14085559876||42"></textarea>
+      </div>
+      <div id="discoverError"></div>
+      <button type="button" class="btn btn-primary" onclick="parseConversations()">Show My Conversations →</button>
+    </div>
+  </div>
+
+  <!-- STEP 3: Pick + Date range -->
+  <div id="stepFilter">
+    <div class="card">
+      <div class="card-title">Step 2 — Select the conversation</div>
+      <div class="card-sub">
+        Select <strong>all</strong> the conversations with <strong id="receiverLabel">them</strong> — you can pick multiple! iMessage sometimes splits one person across several threads (phone number, Apple ID, etc.). Select them all and they'll be merged into one chronological flow. Then optionally set a date range.
+      </div>
+      <div id="selectedBadge" style="display:none; margin-bottom:10px; font-size:0.82rem; color:var(--accent); font-weight:500;"></div>
+      <div class="field" style="margin-bottom:10px;">
+        <input type="text" id="convSearch" placeholder="Search by name or phone number…" oninput="filterConvs()" />
+      </div>
+      <div class="conv-list" id="convList"></div>
+
+      <div style="margin-top:22px; padding-top:20px; border-top:1px solid var(--border);">
+        <div class="card-title" style="font-size:1rem; margin-bottom:4px;">
+          Date range
+          <span style="font-family:'DM Sans',sans-serif; font-weight:300; font-size:0.82rem; color:var(--muted); margin-left:8px;">optional — leave blank for the full history</span>
+        </div>
+        <div class="row2" style="margin-top:14px;">
+          <div class="field">
+            <label>From</label>
+            <input type="date" id="dateFrom" />
+          </div>
+          <div class="field">
+            <label>To</label>
+            <input type="date" id="dateTo" />
+          </div>
+        </div>
+      </div>
+      <div id="filterError"></div>
+      <button type="button" class="btn btn-primary" onclick="buildCommand()">Build My Export Command →</button>
+    </div>
+  </div>
+
+  <!-- STEP 4: Run command + paste output -->
+  <div id="stepPaste">
+    <div class="card">
+      <div class="card-title">Step 3 — Run this command &amp; paste the result</div>
+      <div class="card-sub">
+        This command is tailored to <strong id="chatLabel">your conversation</strong>. Copy it, run it in Terminal, then paste the output below.
+      </div>
+      <div class="terminal">
+        <button type="button" class="copy-btn" onclick="copyEl('exportCmd', this)">Copy</button>
+        <code id="exportCmd"></code>
+      </div>
+      <div class="info" style="margin-top:4px;">
+        <strong>Tip:</strong> The command may take a few seconds. When it finishes, select all the output text, copy it (⌘A then ⌘C), and paste it in the box below.
+      </div>
+      <div class="field" style="margin-top:16px;">
+        <label>Paste Terminal output here</label>
+        <textarea class="mono" id="msgInput" placeholder="Paste the output here. Each line will look like:&#10;2023-04-15 14:32:07|1|Hey, what time works for you?&#10;2023-04-15 14:35:42|0|Around 3pm is good"></textarea>
+      </div>
+      <div id="pasteError"></div>
+      <button type="button" class="btn btn-primary" onclick="parseAndRender()">✨ Generate PDF Preview →</button>
+    </div>
+  </div>
+
+  <!-- STEP 5: Preview -->
+  <div id="stepPreview">
+    <div class="toolbar">
+      <div class="toolbar-info">
+        <h3 id="previewTitle">Conversation</h3>
+        <p id="previewStats"></p>
+      </div>
+      <div class="toolbar-btns">
+        <button type="button" class="btn btn-ghost" onclick="resetAll()">← Start over</button>
+        <button type="button" class="btn btn-pdf" id="pdfBtn" onclick="savePDF()">🖨 Save as PDF</button>
+      </div>
+    </div>
+    <div class="conv-wrap">
+      <div class="conv-head">
+        <div class="conv-head-avatar" id="previewAvatar"></div>
+        <div class="conv-head-info">
+          <h3 id="previewName"></h3>
+          <p id="previewDates"></p>
+        </div>
+      </div>
+      <div class="pdf-header" id="pdfHeader"></div>
+      <div class="messages" id="messagesArea"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+let selectedConvs = [];
+let dbPath = '~/Library/Messages/chat.db';
+
+function setDbPath(path) {
+  dbPath = path;
+  const input = document.getElementById('dbPathInput');
+  if (input && path !== input.value) input.value = path;
+  const discoverSql = `SELECT c.rowid, c.chat_identifier, c.display_name, COUNT(m.rowid) as msg_count FROM chat c LEFT JOIN chat_message_join cmj ON c.rowid = cmj.chat_id LEFT JOIN message m ON cmj.message_id = m.rowid GROUP BY c.rowid ORDER BY msg_count DESC LIMIT 100;`;
+  document.getElementById('discoverCmd').textContent = `sqlite3 "${dbPath}" \\\n"${discoverSql}"`;
+}
+const AV_COLORS = ['#e17055','#0984e3','#6c5ce7','#00b894','#b5651d','#e84393','#636e72'];
+
+function setStep(n) {
+  ['stepNames','stepDiscover','stepFilter','stepPaste','stepPreview'].forEach((id, i) => {
+    document.getElementById(id).style.display = (i === n-1) ? 'block' : 'none';
+  });
+  for (let i = 1; i <= 5; i++) {
+    document.getElementById('prog'+i).className = 'prog-step ' + (i < n ? 'done' : i === n ? 'active' : '');
+    if (i < 5) document.getElementById('line'+i).className = 'prog-line ' + (i < n ? 'done' : '');
+  }
+  window.scrollTo({top: 0, behavior: 'smooth'});
+}
+
+function goStep2() {
+  const r = document.getElementById('receiverName').value.trim();
+  const errEl = document.getElementById('namesError');
+  if (!r) { errEl.innerHTML = '<div class="error">Please enter the other person\'s name.</div>'; return; }
+  errEl.innerHTML = '';
+  document.getElementById('receiverLabel').textContent = r;
+  setStep(2);
+}
+
+function copyEl(id, btn) {
+  navigator.clipboard.writeText(document.getElementById(id).textContent).then(() => {
+    btn.textContent = '✓ Copied!'; btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+  });
+}
+
+function parseConversations() {
+  const raw = document.getElementById('discoverOutput').value.trim();
+  const errEl = document.getElementById('discoverError');
+  errEl.innerHTML = '';
+  if (!raw) { errEl.innerHTML = '<div class="error">Please paste the Terminal output first.</div>'; return; }
+
+  const convs = raw.split('\n').filter(l => l.trim()).map(line => {
+    const p = line.split('|');
+    if (p.length < 2) return null;
+    const rowid = p[0].trim();
+    if (isNaN(parseInt(rowid))) return null;
+    return { rowid, chatId: p[1].trim(), displayName: (p[2]||'').trim(), msgCount: parseInt(p[3]||0)||0 };
+  }).filter(Boolean);
+
+  if (!convs.length) { errEl.innerHTML = '<div class="error">Could not parse conversations. Make sure you copied the full Terminal output.</div>'; return; }
+
+  // Render picker
+  const list = document.getElementById('convList');
+  list.innerHTML = '';
+  convs.forEach((c, i) => {
+    const color = AV_COLORS[i % AV_COLORS.length];
+    const label = c.displayName || c.chatId;
+    const initials = label.replace(/[^a-zA-Z0-9]/g,'').slice(0,2).toUpperCase() || '?';
+    const div = document.createElement('div');
+    div.className = 'conv-item';
+    div.innerHTML = `
+      <div class="conv-avatar" style="background:${color}">${initials}</div>
+      <div class="conv-info">
+        <div class="conv-name">${esc(label)}</div>
+        <div class="conv-id">${esc(c.chatId)}</div>
+      </div>
+      <div class="conv-count">${c.msgCount.toLocaleString()} msgs</div>`;
+    div.onclick = () => {
+      const idx = selectedConvs.findIndex(s => s.rowid === c.rowid);
+      if (idx >= 0) {
+        selectedConvs.splice(idx, 1);
+        div.classList.remove('selected');
+      } else {
+        selectedConvs.push({ ...c, color });
+        div.classList.add('selected');
+      }
+      updateSelectedBadge();
+    };
+    list.appendChild(div);
+  });
+
+  setStep(3);
+}
+
+function updateSelectedBadge() {
+  const badge = document.getElementById('selectedBadge');
+  if (selectedConvs.length === 0) {
+    badge.style.display = 'none';
+  } else {
+    badge.style.display = 'block';
+    badge.textContent = `✓ ${selectedConvs.length} conversation${selectedConvs.length > 1 ? 's' : ''} selected — they'll be merged into one`;
+  }
+}
+
+function buildCommand() {
+  const errEl = document.getElementById('filterError');
+  errEl.innerHTML = '';
+  if (!selectedConvs.length) { errEl.innerHTML = '<div class="error">Please select at least one conversation.</div>'; return; }
+
+  const from = document.getElementById('dateFrom').value;
+  const to   = document.getElementById('dateTo').value;
+
+  let dateClause = '';
+  if (from) dateClause += ` AND m.date>=(strftime('%s','${from}')-strftime('%s','2001-01-01'))*1000000000`;
+  if (to) {
+    const toD = new Date(to); toD.setDate(toD.getDate()+1);
+    const toStr = toD.toISOString().split('T')[0];
+    dateClause += ` AND m.date<(strftime('%s','${toStr}')-strftime('%s','2001-01-01'))*1000000000`;
+  }
+
+  const rowids = selectedConvs.map(c => c.rowid).join(',');
+  const safePath = dbPath.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  const sql = `SELECT datetime(m.date/1000000000+strftime('%s','2001-01-01'),'unixepoch','localtime'),m.is_from_me,m.text,m.attributedBody,m.rowid FROM message m JOIN chat_message_join cmj ON m.rowid=cmj.message_id JOIN chat c ON cmj.chat_id=c.rowid WHERE c.rowid IN (${rowids}) AND m.associated_message_type=0${dateClause} ORDER BY m.date`;
+
+  const pyScript =
+`import sqlite3
+
+GARBAGE_MARKERS = [b'NSDictionary', b'NSFont', b'NSColor', b'NSParagraph',
+                   b'NSMutable', b'NSObject', b'NSArray', b'NSURL',
+                   b'NSUnderline', b'NSLink', b'NSStroke', b'NSKern',
+                   b'DDScannerResult', b'_DDScannerResult', b'DDMatchResult',
+                   b'DDResult', b'DataDetector', b'Meridian', b'DayNumb',
+                   b'USD-CAD', b'CAD-AUD', b'AUD-HKD',
+                   b'$null', b'$class', b'$objects', b'$version']
+
+def is_garbage_string(s):
+    if not s:
+        return True
+    # DataDetector currency code lists: repeated 3-letter codes separated by dashes
+    # e.g. "kUSD-CAD-AUD-HKD-..." - count dash-separated segments of 2-4 uppercase letters
+    parts = s.lstrip('k').split('-')
+    if len(parts) >= 4 and all(p.isupper() and 2 <= len(p) <= 4 for p in parts if p):
+        return True
+    return False
+
+def try_extract_at(data, plus_pos):
+    length_pos = plus_pos + 1
+    if length_pos >= len(data):
+        return None
+    first = data[length_pos]
+    if first < 0x80:
+        text_len, text_start = first, length_pos + 1
+    elif first == 0x81 and length_pos + 3 <= len(data):
+        text_len = int.from_bytes(data[length_pos+1:length_pos+3], 'little'); text_start = length_pos + 3
+    elif first == 0x82 and length_pos + 4 <= len(data):
+        text_len = int.from_bytes(data[length_pos+1:length_pos+4], 'little'); text_start = length_pos + 4
+    elif first == 0x83 and length_pos + 5 <= len(data):
+        text_len = int.from_bytes(data[length_pos+1:length_pos+5], 'little'); text_start = length_pos + 5
+    else:
+        return None
+    if text_len == 0 or text_start + text_len > len(data):
+        return None
+    chunk = data[text_start:text_start + text_len]
+    null_idx = chunk.find(b'\\x00')
+    if null_idx != -1:
+        chunk = chunk[:null_idx]
+    if any(m in chunk for m in GARBAGE_MARKERS):
+        return None
+    try:
+        result = chunk.decode('utf-8').strip()
+    except UnicodeDecodeError:
+        try:
+            result = chunk.decode('latin-1').strip()
+        except Exception:
+            return None
+    if result and not is_garbage_string(result):
+        return result
+    return None
+
+def try_streamtyped(data):
+    # Scan every '+' C-string type marker in the archive.
+    # Validate each candidate: must be valid UTF-8, no ObjC class names, no DD garbage.
+    pos = 0
+    while pos < len(data) - 2:
+        plus_pos = data.find(b'+', pos)
+        if plus_pos == -1:
+            break
+        result = try_extract_at(data, plus_pos)
+        if result is not None:
+            return result, 'ok'
+        pos = plus_pos + 1
+    return None, 'no_text_found'
+def get_text(text, body):
+    if text:
+        # U+FFFC is iMessage's object-replacement placeholder for attachments — treat as no text
+        clean = text.replace('￼', '').strip()
+        if clean:
+            return clean, 'ok'
+    if not body:
+        return None, 'no_body'
+    try:
+        data = bytes(body)
+        # NSKeyedArchiver (binary plist) format — used by newer iOS versions
+        if data[:6] == b'bplist':
+            try:
+                import plistlib
+                plist = plistlib.loads(data)
+                for obj in plist.get('$objects', []):
+                    if isinstance(obj, dict) and 'NS.string' in obj:
+                        s = obj['NS.string']
+                        if isinstance(s, str) and s.strip():
+                            return s.strip(), 'ok'
+                return None, 'plist_no_string'
+            except Exception as e:
+                return None, 'plist_err:{}'.format(type(e).__name__)
+        # Streamtyped / NSArchive format
+        return try_streamtyped(data)
+    except NameError as e:
+        return None, 'NameError:{}'.format(str(e))
+    except Exception as e:
+        return None, 'error:{}:{}'.format(type(e).__name__, str(e)[:60])
+
+def get_attachment_label(conn, msg_rowid):
+    cur = conn.execute(
+        "SELECT a.mime_type, a.filename FROM message_attachment_join maj "
+        "JOIN attachment a ON maj.attachment_id = a.rowid "
+        "WHERE maj.message_id = ? LIMIT 1", (msg_rowid,))
+    row = cur.fetchone()
+    if not row:
+        return None
+    mime = (row[0] or '').lower()
+    fname = (row[1] or '')
+    ext = fname.rsplit('.', 1)[-1].lower() if '.' in fname else ''
+    if mime.startswith('image/') or ext in ('jpg','jpeg','png','heic','gif','webp'):
+        return '[Photo]'
+    if mime.startswith('video/') or ext in ('mp4','mov','m4v'):
+        return '[Video]'
+    if mime.startswith('audio/') or ext in ('m4a','mp3','amr','caf','wav'):
+        return '[Audio Message]'
+    if mime in ('text/x-vcard','text/vcard') or ext == 'vcf':
+        return '[Contact Card]'
+    if mime == 'application/pdf' or ext == 'pdf':
+        return '[PDF]'
+    if mime or ext:
+        return '[Attachment: {}]'.format(mime or ext)
+    return '[Attachment]'
+
+conn = sqlite3.connect('${safePath}')
+for row in conn.execute("""${sql}"""):
+    t, reason = get_text(row[2], row[3])
+    # Strip U+FFFC (object replacement character) — iMessage attachment placeholder
+    if t:
+        t = t.replace('\\ufffc', '').strip() or None
+    if not t:
+        attachment = get_attachment_label(conn, row[4])
+        if attachment:
+            t = attachment
+        elif row[2] is None and row[3] is None:
+            continue
+        elif reason == 'no_text_found':
+            t = '[Could not read]'
+        else:
+            t = '[Could not read]'
+    print("{}|{}|{}".format(row[0], row[1], t.replace('\\n', ' ').replace('|', '/')))
+conn.close()`;
+
+  document.getElementById('exportCmd').textContent = `python3 << 'PYEOF'\n${pyScript}\nPYEOF`;
+
+  const labels = selectedConvs.map(c => c.displayName || c.chatId).join(' + ');
+  const range = (from||to) ? ` · ${from||'start'} → ${to||'now'}` : ' · full history';
+  document.getElementById('chatLabel').textContent = labels + range;
+
+  setStep(4);
+}
+
+function parseAndRender() {
+  const raw = document.getElementById('msgInput').value.trim();
+  const errEl = document.getElementById('pasteError');
+  errEl.innerHTML = '';
+  if (!raw) { errEl.innerHTML = '<div class="error">Please paste the Terminal output first.</div>'; return; }
+
+  const senderName   = document.getElementById('senderName').value.trim() || 'Me';
+  const receiverName = document.getElementById('receiverName').value.trim() || 'Them';
+
+  // Parse pipe-delimited: date|is_from_me|text
+  const msgs = [];
+  for (const line of raw.split('\n')) {
+    const p1 = line.indexOf('|');
+    if (p1 === -1) continue;
+    const rest = line.slice(p1+1);
+    const p2 = rest.indexOf('|');
+    if (p2 === -1) continue;
+    const dateStr  = line.slice(0, p1).trim();
+    const fromMe   = rest.slice(0, p2).trim();
+    const text     = rest.slice(p2+1).trim();
+    if (!text) continue;
+    const date = new Date(dateStr);
+    if (isNaN(date)) continue;
+    msgs.push({ date, text, sent: fromMe === '1' });
+  }
+
+  if (!msgs.length) {
+    errEl.innerHTML = '<div class="error">No messages found. Make sure you pasted the full output. Each line should contain two | characters.</div>';
+    return;
+  }
+
+  msgs.sort((a,b) => a.date - b.date);
+
+  // Render
+  const area = document.getElementById('messagesArea');
+  area.innerHTML = '';
+
+  const color = selectedConvs[0]?.color || '#0984e3';
+  const initials = receiverName.replace(/[^a-zA-Z]/g,'').slice(0,2).toUpperCase() || '?';
+  document.getElementById('previewAvatar').textContent = initials;
+  document.getElementById('previewAvatar').style.background = color;
+  document.getElementById('previewName').textContent = `${senderName} & ${receiverName}`;
+
+  const fmt = d => d.toLocaleDateString('en-US', {month:'long', day:'numeric', year:'numeric'});
+  document.getElementById('previewDates').textContent = `${fmt(msgs[0].date)} – ${fmt(msgs[msgs.length-1].date)}`;
+  document.getElementById('previewTitle').textContent = `${senderName} & ${receiverName}`;
+  document.getElementById('pdfHeader').textContent = `Exported ${new Date().toLocaleString()} · ${msgs.length} messages`;
+
+  const sent = msgs.filter(m=>m.sent).length;
+  document.getElementById('previewStats').textContent =
+    `${msgs.length} messages · ${sent} from ${senderName} · ${msgs.length-sent} from ${receiverName}`;
+
+  let lastDay=null, lastSent=null, grp=null;
+  msgs.forEach((msg, idx) => {
+    const day = msg.date.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
+    if (day !== lastDay) {
+      const sep = document.createElement('div'); sep.className='date-sep'; sep.textContent=day;
+      area.appendChild(sep); lastDay=day; grp=null; lastSent=null;
+    }
+    if (msg.sent !== lastSent || !grp) {
+      grp = document.createElement('div');
+      grp.className = `msg-grp ${msg.sent ? 'sent' : 'recv'}`;
+      area.appendChild(grp); lastSent=msg.sent;
+    }
+    const b = document.createElement('div'); b.className='bubble'; b.textContent=msg.text;
+    grp.appendChild(b);
+    const isLast = idx===msgs.length-1 || msgs[idx+1]?.sent!==msg.sent;
+    if (isLast) {
+      const t = document.createElement('div'); t.className='btime';
+      t.textContent = msg.date.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+      grp.appendChild(t);
+    }
+  });
+
+  setStep(5);
+}
+
+function filterConvs() {
+  const q = document.getElementById('convSearch').value.toLowerCase();
+  document.querySelectorAll('#convList .conv-item').forEach(item => {
+    const name = item.querySelector('.conv-name').textContent.toLowerCase();
+    const id = item.querySelector('.conv-id').textContent.toLowerCase();
+    item.style.display = (!q || name.includes(q) || id.includes(q)) ? '' : 'none';
+  });
+}
+
+function resetAll() {
+  selectedConvs = [];
+  ['discoverOutput','msgInput','convSearch'].forEach(id => document.getElementById(id).value='');
+  ['dateFrom','dateTo'].forEach(id => document.getElementById(id).value='');
+  document.getElementById('convList').innerHTML='';
+  setStep(1);
+}
+
+function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function savePDF() {
+  const senderName   = document.getElementById('senderName').value.trim() || 'Me';
+  const receiverName = document.getElementById('receiverName').value.trim() || 'Them';
+  const headerText   = document.getElementById('pdfHeader').textContent;
+  const datesText    = document.getElementById('previewDates').textContent;
+  const messagesHTML = document.getElementById('messagesArea').innerHTML;
+  const color        = selectedConvs[0]?.color || '#0984e3';
+  const initials     = receiverName.replace(/[^a-zA-Z]/g,'').slice(0,2).toUpperCase() || '?';
+
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif; background: white; color: #1c1c1e; }
+.print-bar { position: sticky; top: 0; z-index: 99; background: #f2f2f7; border-bottom: 1px solid #ddd; padding: 12px 24px; display: flex; align-items: center; gap: 16px; }
+.print-btn { background: #0B93F6; color: white; border: none; border-radius: 10px; padding: 9px 22px; font-size: 0.95rem; font-weight: 600; cursor: pointer; }
+.print-btn:hover { background: #0a7fd4; }
+.print-hint { font-size: 0.8rem; color: #666; line-height: 1.4; }
+.print-hint strong { color: #333; }
+.content { padding: 24px; }
+.conv-header { display: flex; align-items: center; gap: 12px; padding-bottom: 14px; border-bottom: 1px solid #eee; margin-bottom: 6px; }
+.avatar { width: 40px; height: 40px; border-radius: 50%; background: ${color}; display: flex; align-items: center; justify-content: center; font-weight: 700; color: white; font-size: 0.9rem; flex-shrink: 0; }
+.conv-header h2 { font-size: 1rem; font-weight: 600; }
+.conv-header p { font-size: 0.72rem; color: #999; margin-top: 2px; }
+.export-info { font-size: 0.7rem; color: #bbb; padding: 6px 0 14px; }
+.messages { display: flex; flex-direction: column; gap: 3px; }
+.date-sep { text-align: center; font-size: 0.7rem; color: #999; margin: 12px 0 6px; }
+.msg-grp { display: flex; flex-direction: column; gap: 2px; margin: 3px 0 10px; }
+.msg-grp.sent { align-items: flex-end; }
+.msg-grp.recv { align-items: flex-start; }
+.bubble { max-width: 70%; padding: 8px 13px; border-radius: 18px; font-size: 0.85rem; line-height: 1.5; word-break: break-word; }
+.sent .bubble { background: #0B93F6; color: white; border-bottom-right-radius: 4px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.recv .bubble { background: #E5E5EA; color: #1c1c1e; border-bottom-left-radius: 4px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.btime { font-size: 0.67rem; color: #999; margin-top: 8px; padding: 0 4px; }
+.sent .btime { text-align: right; }
+.recv .btime { text-align: left; }
+@media print {
+  .print-bar { display: none; }
+  .content { padding: 16px; }
+  .msg-grp { page-break-inside: avoid; }
+}
+</style>
+</head>
+<body>
+<div class="print-bar">
+  <button class="print-btn" onclick="window.print()">🖨 Save as PDF</button>
+  <div class="print-hint"><strong>Chrome:</strong> change "Destination" → "Save as PDF" &nbsp;|&nbsp; <strong>Safari:</strong> click "PDF" (bottom-left) → "Save as PDF"</div>
+</div>
+<div class="content">
+<div class="conv-header">
+  <div class="avatar">${initials}</div>
+  <div><h2>${senderName} &amp; ${receiverName}</h2><p>${datesText}</p></div>
+</div>
+<div class="export-info">${headerText}</div>
+<div class="messages">${messagesHTML}</div>
+</div>
+</body>
+</html>`;
+
+  const blob = new Blob([html], { type: 'text/html; charset=utf-8' });
+  const url  = URL.createObjectURL(blob);
+  const win  = window.open(url, '_blank');
+  if (!win) alert('Please allow popups for this page to open the print dialog.');
+  setTimeout(() => URL.revokeObjectURL(url), 30000);
+}
+
+setStep(1);
+setDbPath('~/Library/Messages/chat.db');
+</script>
+</body>
+</html>
