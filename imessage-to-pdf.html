@@ -253,6 +253,14 @@ body {
         </div>
         <input type="text" id="dbPathInput" value="~/Library/Messages/chat.db" oninput="setDbPath(this.value)" placeholder="Paste database path here…" />
       </div>
+      <div class="info" id="macMessagesInfo">
+        <strong>Required: Full Disk Access for Terminal.</strong> Without it, macOS will block access to your Messages database. To grant it: open <strong>System Settings → Privacy &amp; Security → Full Disk Access</strong>, then toggle <strong>Terminal</strong> on. You only need to do this once.
+      </div>
+      <div class="info" id="iphoneBackupInfo" style="display:none;">
+        <strong>You need an unencrypted iPhone backup.</strong> Open <strong>Finder</strong>, connect your iPhone, click your device in the sidebar, and under Backups choose <strong>"Back up all data on your iPhone to this Mac"</strong> — make sure "Encrypt local backup" is <strong>unchecked</strong>. Click Back Up Now and wait for it to finish.<br><br>
+        Then run this command in Terminal to find the backup path and paste it in the box above:<br>
+        <code style="display:block; margin-top:8px; padding:8px; background:var(--bg); border-radius:6px; font-size:0.8rem; user-select:all;">find ~/Library/Application\ Support/MobileSync/Backup -name "3d0d7e5fb2ce288813306e4d4636395e047a3d28" 2>/dev/null | head -1</code>
+      </div>
       <div class="info">
         <strong>New to Terminal?</strong> Press <strong>⌘ Space</strong>, type "Terminal", then press Enter. Then paste the command below and press Enter.
       </div>
@@ -363,6 +371,10 @@ function setDbPath(path) {
   if (input && path !== input.value) input.value = path;
   const discoverSql = `SELECT c.rowid, c.chat_identifier, c.display_name, COUNT(m.rowid) as msg_count FROM chat c LEFT JOIN chat_message_join cmj ON c.rowid = cmj.chat_id LEFT JOIN message m ON cmj.message_id = m.rowid GROUP BY c.rowid ORDER BY msg_count DESC LIMIT 100;`;
   document.getElementById('discoverCmd').textContent = `sqlite3 "${dbPath}" \\\n"${discoverSql}"`;
+  const isMac = path === '~/Library/Messages/chat.db';
+  const isIphone = !isMac;
+  document.getElementById('macMessagesInfo').style.display = isMac ? '' : 'none';
+  document.getElementById('iphoneBackupInfo').style.display = isIphone ? '' : 'none';
 }
 const AV_COLORS = ['#e17055','#0984e3','#6c5ce7','#00b894','#b5651d','#e84393','#636e72'];
 

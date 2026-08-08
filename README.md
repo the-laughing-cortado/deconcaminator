@@ -15,6 +15,40 @@ This tool does one thing: turn a conversation into a readable PDF that looks lik
 
 ---
 
+## Setup
+
+Before running the tool, two things need to be in place depending on your message source.
+
+### Option A — Mac Messages (recommended)
+
+Your Mac stores iMessage history at `~/Library/Messages/chat.db`. macOS gates access to this folder behind **Full Disk Access**:
+
+1. Open **System Settings → Privacy & Security → Full Disk Access**
+2. Toggle **Terminal** on
+3. Restart Terminal if it was already open
+
+That's it. One-time setup.
+
+### Option B — iPhone backup
+
+Use this if you want messages from your iPhone that aren't synced to your Mac, or if you don't have a Mac with Messages history.
+
+**Create an unencrypted backup:**
+1. Connect your iPhone to your Mac with a cable
+2. Open **Finder** and click your device in the sidebar
+3. Under Backups, select **"Back up all data on your iPhone to this Mac"**
+4. Make sure **"Encrypt local backup" is unchecked**
+5. Click **Back Up Now** and wait for it to complete
+
+**Find the backup path** — run this in Terminal and paste the result into the app:
+```bash
+find ~/Library/Application\ Support/MobileSync/Backup -name "3d0d7e5fb2ce288813306e4d4636395e047a3d28" 2>/dev/null | head -1
+```
+
+> **Note:** The backup path contains a UUID that changes each time you create a new backup. If you make a new backup, re-run the find command to get the updated path.
+
+---
+
 ## How it works
 
 The app is a single HTML file you open in your browser. It walks you through five steps:
