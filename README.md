@@ -2,8 +2,7 @@
 
 Export an iMessage conversation as a clean, readable PDF. Built for non-technical users.
 
-![Preview](screenshot.png)
-> *Add a screenshot here before publishing — open the app, load a conversation, and capture the preview step.*
+![Preview](deconcaminator.png)
 
 ---
 
